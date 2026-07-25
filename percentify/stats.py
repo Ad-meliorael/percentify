@@ -20,6 +20,22 @@ def _round(value: float, decimals: Optional[int]) -> float:
     return round(value, decimals)
 
 
+def _round_p(value: float, decimals: Optional[int]) -> float:
+    """Round a p-value without collapsing a small but non-zero result to 0.
+
+    Plain rounding turns p=0.0001 into 0.0 at the default 2 decimals, which
+    reads as "exactly zero" instead of "very small". When that happens, keep
+    enough decimals to show the first two significant digits instead.
+    """
+    if decimals is None or not np.isfinite(value):
+        return _round(value, decimals)
+    rounded = round(value, decimals)
+    if rounded != 0 or value == 0:
+        return rounded
+    magnitude = int(np.floor(np.log10(abs(value))))
+    return round(value, -magnitude + 1)
+
+
 def _is_polars(obj) -> bool:
     """True if obj is a polars DataFrame/Series, without importing polars."""
     return type(obj).__module__.split(".", 1)[0] == "polars"
@@ -586,7 +602,7 @@ def correlate(a, b=None, method: str = "pearson", decimals: Optional[int] = 2):
             _warn("correlate needs at least 3 complete numeric pairs. Returning NaN.")
             return (float("nan"), float("nan"))
         r, p = corr_fn(pair["a"].to_numpy(), pair["b"].to_numpy())
-        return (_round(float(r), decimals), _round(float(p), decimals))
+        return (_round(float(r), decimals), _round_p(float(p), decimals))
 
     if not isinstance(a, pd.DataFrame):
         raise TypeError(f"correlate expects a Series or DataFrame, got {type(a).__name__}.")
@@ -606,7 +622,7 @@ def correlate(a, b=None, method: str = "pearson", decimals: Optional[int] = 2):
             if len(pair) < 3 or np.std(x) == 0 or np.std(y) == 0:
                 continue
             r, p = corr_fn(x, y)
-            rows.append((c1, c2, _round(float(r), decimals), _round(float(p), decimals)))
+            rows.append((c1, c2, _round(float(r), decimals), _round_p(float(p), decimals)))
 
     result = pd.DataFrame(rows, columns=["feature_1", "feature_2", "r", "p"])
     if result.empty:
