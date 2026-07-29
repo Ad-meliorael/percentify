@@ -20,32 +20,31 @@ def _round(value: float, decimals: Optional[int]) -> float:
     return round(value, decimals)
 
 
-# Smallest positive float. Used as the floor for p-values that underflow to 0.
+# Smallest positive float, used as the floor when a p-value underflows to 0.
 _P_FLOOR = float(np.nextafter(0.0, 1.0))
 
 
 def _round_p(value: float, decimals: Optional[int]) -> float:
-    """Round a p-value without collapsing a small one to a misleading 0.0.
+    """Round a p-value without collapsing a small but non-zero result to 0.
 
-    Plain decimal rounding turns every p below the resolution into 0.0, which
-    reads as "impossible" when it really means "smaller than we printed". Below
-    that threshold we keep two significant figures instead, so 1.7e-31 survives
-    as 1.7e-31 and stays honest, comparable, and non-zero.
+    Plain rounding turns p=0.0001 into 0.0 at the default 2 decimals, which
+    reads as "exactly zero" instead of "very small". When that happens, keep
+    enough decimals to show the first two significant digits instead.
+
+    A p-value is never truly zero, so an incoming 0.0 is not taken at face
+    value either: on a large sample the real p can be around 1e-2000, far
+    below the smallest float, so scipy hands back a literal 0.0. That is
+    floored to the smallest positive float rather than reported as zero.
     """
-    p = float(value)
-    if not np.isfinite(p):
-        return p
-    if p == 0.0:
-        # On a large sample the true p can be ~1e-2000, far below the smallest
-        # double, so scipy hands back a literal 0.0. Reporting that would claim
-        # "impossible" instead of "vanishingly small", so we floor at the
-        # smallest positive float: the invariant is that a p is never exactly 0.
+    if value == 0:
         return _P_FLOOR
-    if decimals is None:
-        return p
-    if p >= 10.0 ** (-decimals):
-        return round(p, decimals)
-    return float(f"{p:.1e}")  # two significant figures, e.g. 1.7e-31
+    if decimals is None or not np.isfinite(value):
+        return _round(value, decimals)
+    rounded = round(value, decimals)
+    if rounded != 0:
+        return rounded
+    magnitude = int(np.floor(np.log10(abs(value))))
+    return round(value, -magnitude + 1)
 
 
 def _is_polars(obj) -> bool:
@@ -929,6 +928,9 @@ def split(total, weights, decimals: Optional[int] = 2):
     shares = w.astype(float) / weight_sum * float(total)
     if decimals is not None:
         shares = shares.round(decimals)
+        remainder = round(float(total), decimals) - float(shares.sum())
+        if remainder:
+            shares.iloc[-1] = round(shares.iloc[-1] + remainder, decimals)
     return shares if is_series else shares.tolist()
 
 
