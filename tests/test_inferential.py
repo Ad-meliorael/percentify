@@ -46,6 +46,18 @@ def test_correlate_single_numeric_column_warns():
     assert result.empty
 
 
+def test_correlate_small_p_value_not_rounded_to_zero():
+    np.random.seed(0)
+    x = pd.Series(np.random.randn(200))
+    y = pd.Series(x * 0.6 + np.random.randn(200) * 0.5)
+
+    r, p = correlate(x, y)
+    assert p > 0
+
+    result = correlate(pd.DataFrame({"a": x, "b": y}))
+    assert (result["p"] > 0).all()
+
+
 # ===== skew_report =====
 
 def test_skew_report_columns():
