@@ -609,7 +609,9 @@ def test_split_list():
 
 
 def test_split_equal():
-    assert split(100, [1, 1, 1]) == [pytest.approx(33.33)] * 3
+    result = split(100, [1, 1, 1])
+    assert result == [33.33, 33.33, 33.34]
+    assert sum(result) == 100
 
 
 def test_split_series_returns_series():
