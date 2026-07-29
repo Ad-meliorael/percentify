@@ -20,6 +20,34 @@ def _round(value: float, decimals: Optional[int]) -> float:
     return round(value, decimals)
 
 
+# Smallest positive float. Used as the floor for p-values that underflow to 0.
+_P_FLOOR = float(np.nextafter(0.0, 1.0))
+
+
+def _round_p(value: float, decimals: Optional[int]) -> float:
+    """Round a p-value without collapsing a small one to a misleading 0.0.
+
+    Plain decimal rounding turns every p below the resolution into 0.0, which
+    reads as "impossible" when it really means "smaller than we printed". Below
+    that threshold we keep two significant figures instead, so 1.7e-31 survives
+    as 1.7e-31 and stays honest, comparable, and non-zero.
+    """
+    p = float(value)
+    if not np.isfinite(p):
+        return p
+    if p == 0.0:
+        # On a large sample the true p can be ~1e-2000, far below the smallest
+        # double, so scipy hands back a literal 0.0. Reporting that would claim
+        # "impossible" instead of "vanishingly small", so we floor at the
+        # smallest positive float: the invariant is that a p is never exactly 0.
+        return _P_FLOOR
+    if decimals is None:
+        return p
+    if p >= 10.0 ** (-decimals):
+        return round(p, decimals)
+    return float(f"{p:.1e}")  # two significant figures, e.g. 1.7e-31
+
+
 def _is_polars(obj) -> bool:
     """True if obj is a polars DataFrame/Series, without importing polars."""
     return type(obj).__module__.split(".", 1)[0] == "polars"
@@ -566,10 +594,16 @@ def correlate(a, b=None, method: str = "pearson", decimals: Optional[int] = 2):
         a: A Series (with b) or a DataFrame (matrix mode).
         b: The second Series for a pairwise correlation.
         method: "pearson" (linear) or "spearman" (rank / monotonic).
-        decimals: Number of decimal places to round to.
+        decimals: Number of decimal places to round to. A p-value smaller than
+            this resolution keeps two significant figures instead of rounding
+            to 0.0, so a tiny p reads as 1.7e-31 rather than a false zero.
 
     Returns:
         A (r, p) tuple for two Series, or a DataFrame for a DataFrame.
+
+    Note:
+        On a large sample almost any r is "significant", so p mostly tells you
+        the correlation is not exactly zero. Read r for the strength.
     """
     from scipy import stats
 
@@ -586,7 +620,7 @@ def correlate(a, b=None, method: str = "pearson", decimals: Optional[int] = 2):
             _warn("correlate needs at least 3 complete numeric pairs. Returning NaN.")
             return (float("nan"), float("nan"))
         r, p = corr_fn(pair["a"].to_numpy(), pair["b"].to_numpy())
-        return (_round(float(r), decimals), _round(float(p), decimals))
+        return (_round(float(r), decimals), _round_p(float(p), decimals))
 
     if not isinstance(a, pd.DataFrame):
         raise TypeError(f"correlate expects a Series or DataFrame, got {type(a).__name__}.")
@@ -606,7 +640,7 @@ def correlate(a, b=None, method: str = "pearson", decimals: Optional[int] = 2):
             if len(pair) < 3 or np.std(x) == 0 or np.std(y) == 0:
                 continue
             r, p = corr_fn(x, y)
-            rows.append((c1, c2, _round(float(r), decimals), _round(float(p), decimals)))
+            rows.append((c1, c2, _round(float(r), decimals), _round_p(float(p), decimals)))
 
     result = pd.DataFrame(rows, columns=["feature_1", "feature_2", "r", "p"])
     if result.empty:
@@ -710,7 +744,10 @@ def permutation_test(a, b, statistic=None, n_permutations: int = 1000,
         statistic: Function of (group_a, group_b) measuring the effect
             (default: difference in means).
         n_permutations: Number of label shuffles.
-        decimals: Number of decimal places to round to.
+        decimals: Number of decimal places to round to. A p-value smaller than
+            this resolution keeps two significant figures instead of rounding
+            to 0.0. The smallest p this test can report is
+            1 / (n_permutations + 1); raise n_permutations to resolve further.
         random_state: Seed for reproducibility.
 
     Returns:
@@ -735,7 +772,7 @@ def permutation_test(a, b, statistic=None, n_permutations: int = 1000,
         rng.shuffle(combined)
         if abs(statistic(combined[:n_a], combined[n_a:])) >= observed:
             count += 1
-    return _round(float((count + 1) / (n_permutations + 1)), decimals)
+    return _round_p(float((count + 1) / (n_permutations + 1)), decimals)
 
 
 @_backend_aware

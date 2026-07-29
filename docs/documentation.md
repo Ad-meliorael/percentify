@@ -528,7 +528,7 @@ df = pd.DataFrame({
     "score":  np.random.randn(200),
 })
 
-correlate(df["age"], df["income"])   # (0.99, 0.0)
+correlate(df["age"], df["income"])   # (0.99, 1.7e-166)
 ```
 
 **A DataFrame returns a ranked table**
@@ -538,13 +538,25 @@ correlate(df)
 ```
 
 ```text
-feature_1 feature_2    r    p
-      age    income 0.99 0.00
-      age     score 0.05 0.49
-   income     score 0.05 0.49
+feature_1 feature_2    r             p
+      age    income 0.99 1.700000e-166
+      age     score 0.05  4.900000e-01
+   income     score 0.05  4.900000e-01
 ```
 
 Pass `method="spearman"` for rank (monotonic) correlation.
+
+!!! note "Reading the p-value"
+    A p-value is never exactly zero, so `correlate` never reports one. When `p`
+    is smaller than the `decimals` resolution it keeps two significant figures
+    (`1.7e-166`) instead of collapsing to a misleading `0.00`. One very small
+    value puts the whole column into scientific notation, so `4.900000e-01` is
+    just `0.49`.
+
+    Read `r` for the strength and `p` only for "is this distinguishable from
+    zero". On a large sample almost any correlation is significant, so a tiny
+    `p` is not evidence of a strong relationship: `r = 0.05` with
+    `p = 1e-20` is still a negligible relationship.
 
 ---
 
@@ -642,6 +654,12 @@ permutation_test(a, b, random_state=0)   # 0.001
 ```
 
 The default statistic is the difference in means; pass your own `statistic(a, b)` for anything else. It returns the number, not a pass or fail verdict, so the judgement stays with you.
+
+!!! note "The smallest p this test can report"
+    A permutation test can only resolve down to `1 / (n_permutations + 1)`, so
+    with the default 1000 shuffles the floor is `0.001`. That is a limit of the
+    shuffling, not proof the effect is that rare. Raise `n_permutations` to
+    resolve further. The result is never rounded down to `0.0`.
 
 ---
 

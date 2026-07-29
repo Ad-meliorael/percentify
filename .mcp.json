@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "codex": {
+      "type": "stdio",
+      "command": "C:\\Users\\daniel\\AppData\\Local\\Programs\\OpenAI\\Codex\\bin\\codex.exe",
+      "args": [
+        "mcp-server"
+      ]
+    }
+  }
+}

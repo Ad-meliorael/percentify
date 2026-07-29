@@ -29,6 +29,45 @@ def test_correlate_dataframe_tidy_and_sorted():
     assert result["r"].abs().tolist() == sorted(result["r"].abs().tolist(), reverse=True)
 
 
+def test_correlate_small_p_is_not_rounded_to_zero():
+    # A p-value below the decimals resolution must keep significant figures
+    # instead of collapsing to a misleading 0.0.
+    np.random.seed(0)
+    n = 200
+    a = np.random.randn(n)
+    b = 0.44 * a + np.sqrt(1 - 0.44 ** 2) * np.random.randn(n)
+    r, p = correlate(pd.Series(a), pd.Series(b))
+    assert 0 < p < 0.01          # genuinely tiny, and never exactly zero
+    assert r == round(r, 2)      # r still honours decimals
+
+
+def test_correlate_underflowing_p_is_never_exactly_zero():
+    # With a large sample the true p is ~1e-2000, so scipy underflows to a
+    # literal 0.0. We must report a vanishingly small number, not "impossible".
+    np.random.seed(0)
+    n = 40000
+    a = np.random.randn(n)
+    b = 0.44 * a + np.sqrt(1 - 0.44 ** 2) * np.random.randn(n)
+    _, p = correlate(pd.Series(a), pd.Series(b))
+    assert p > 0.0
+    assert p < 1e-300
+
+
+def test_correlate_dataframe_p_column_never_zero():
+    np.random.seed(0)
+    base = np.random.randn(5000)
+    df = pd.DataFrame({"a": base, "b": base * 2 + np.random.randn(5000) * 0.01})
+    result = correlate(df)
+    assert (result["p"] > 0).all()
+
+
+def test_correlate_ordinary_p_still_rounds_normally():
+    # Values above the resolution keep the familiar 2-decimal formatting.
+    np.random.seed(3)
+    r, p = correlate(pd.Series(np.random.randn(50)), pd.Series(np.random.randn(50)))
+    assert p == round(p, 2)
+
+
 def test_correlate_spearman():
     r, p = correlate(pd.Series([1, 2, 3, 4, 5]), pd.Series([1, 4, 9, 16, 25]), method="spearman")
     assert r == 1.0   # perfectly monotonic
@@ -123,6 +162,17 @@ def test_permutation_test_flags_real_difference():
     a = np.random.randn(100)
     b = np.random.randn(100) + 2.0
     assert permutation_test(a, b, random_state=0) < 0.05
+
+
+def test_permutation_test_small_p_survives_rounding():
+    # The floor is 1/(n_permutations+1); with 100k shuffles that is ~1e-5,
+    # which plain 4-decimal rounding would have flattened to 0.0.
+    np.random.seed(0)
+    a = np.random.randn(200)
+    b = np.random.randn(200) + 3
+    p = permutation_test(a, b, n_permutations=100000, random_state=0)
+    assert p > 0.0
+    assert p < 0.001
 
 
 def test_permutation_test_reproducible():
