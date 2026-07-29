@@ -20,6 +20,33 @@ def _round(value: float, decimals: Optional[int]) -> float:
     return round(value, decimals)
 
 
+# Smallest positive float, used as the floor when a p-value underflows to 0.
+_P_FLOOR = float(np.nextafter(0.0, 1.0))
+
+
+def _round_p(value: float, decimals: Optional[int]) -> float:
+    """Round a p-value without collapsing a small but non-zero result to 0.
+
+    Plain rounding turns p=0.0001 into 0.0 at the default 2 decimals, which
+    reads as "exactly zero" instead of "very small". When that happens, keep
+    enough decimals to show the first two significant digits instead.
+
+    A p-value is never truly zero, so an incoming 0.0 is not taken at face
+    value either: on a large sample the real p can be around 1e-2000, far
+    below the smallest float, so scipy hands back a literal 0.0. That is
+    floored to the smallest positive float rather than reported as zero.
+    """
+    if value == 0:
+        return _P_FLOOR
+    if decimals is None or not np.isfinite(value):
+        return _round(value, decimals)
+    rounded = round(value, decimals)
+    if rounded != 0:
+        return rounded
+    magnitude = int(np.floor(np.log10(abs(value))))
+    return round(value, -magnitude + 1)
+
+
 def _is_polars(obj) -> bool:
     """True if obj is a polars DataFrame/Series, without importing polars."""
     return type(obj).__module__.split(".", 1)[0] == "polars"
