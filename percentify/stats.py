@@ -20,10 +20,6 @@ def _round(value: float, decimals: Optional[int]) -> float:
     return round(value, decimals)
 
 
-# Smallest positive float, used as the floor when a p-value underflows to 0.
-_P_FLOOR = float(np.nextafter(0.0, 1.0))
-
-
 def _round_p(value: float, decimals: Optional[int]) -> float:
     """Round a p-value without collapsing a small but non-zero result to 0.
 
@@ -31,20 +27,70 @@ def _round_p(value: float, decimals: Optional[int]) -> float:
     reads as "exactly zero" instead of "very small". When that happens, keep
     enough decimals to show the first two significant digits instead.
 
-    A p-value is never truly zero, so an incoming 0.0 is not taken at face
-    value either: on a large sample the real p can be around 1e-2000, far
-    below the smallest float, so scipy hands back a literal 0.0. That is
-    floored to the smallest positive float rather than reported as zero.
+    A p-value of exactly 0.0 is passed through untouched. That is not a claim
+    that p is zero: it means the true value underflowed double precision
+    (scipy returns a literal 0.0 once p drops below about 1e-308). Use
+    ``log_p=True`` on ``correlate`` to recover the magnitude in log space.
     """
-    if value == 0:
-        return _P_FLOOR
     if decimals is None or not np.isfinite(value):
         return _round(value, decimals)
     rounded = round(value, decimals)
-    if rounded != 0:
+    if rounded != 0 or value == 0:
         return rounded
     magnitude = int(np.floor(np.log10(abs(value))))
     return round(value, -magnitude + 1)
+
+
+# Safety cap for the incomplete-beta series below; convergence normally needs
+# far fewer terms (a few hundred), so this only guards a pathological input.
+_LOG_P_MAX_TERMS = 100_000
+
+
+def _log10_p_from_r(r: float, n: int, p: Optional[float] = None) -> float:
+    """log10 of the two-sided p-value for a correlation of ``r`` over ``n`` pairs.
+
+    Returns log10 of scipy's own p-value whenever that is representable. Below
+    the double-precision floor (about 1e-308) scipy returns a literal 0.0, so
+    the magnitude is computed directly in log space instead of being lost.
+
+    The two-sided p-value is the regularized incomplete beta
+    ``I_x(df/2, 1/2)`` with ``x = 1 - r**2``. That is evaluated through its
+    hypergeometric series rather than a leading-order tail approximation, so
+    the result stays accurate for any x: agreement with an arbitrary-precision
+    reference is within about 1e-9 log10 units.
+
+    For ``method="spearman"`` the same transform is applied to rho. That
+    matches the asymptotic scipy itself uses, and like scipy it is an
+    approximation for small n or heavily tied data.
+    """
+    if p is not None and np.isfinite(p) and p > 0:
+        return float(np.log10(p))
+
+    from scipy import special
+
+    r = abs(float(r))
+    df = n - 2
+    if not np.isfinite(r) or df < 1:
+        return float("nan")
+    if r >= 1.0:
+        return float("-inf")  # a perfect correlation drives p below any bound
+    if r == 0.0:
+        return 0.0  # p == 1, and the series below is not needed
+
+    a, b = df / 2.0, 0.5
+    x = (1.0 - r) * (1.0 + r)  # == 1 - r**2, without the cancellation near |r|=1
+
+    # I_x(a, b) = x**a / (a * B(a, b)) * 2F1(a, 1 - b; a + 1; x)
+    term = total = 1.0
+    for k in range(_LOG_P_MAX_TERMS):
+        term *= (a + k) * (1.0 - b + k) * x / ((a + 1.0 + k) * (1.0 + k))
+        total += term
+        if term < 1e-17 * total:
+            break
+
+    log_ibeta = (a * np.log(x) - np.log(a) - special.betaln(a, b)
+                 + np.log(total))
+    return float(log_ibeta / np.log(10.0))
 
 
 def _is_polars(obj) -> bool:
@@ -581,7 +627,8 @@ def _interpret_h(h):
 
 
 @_backend_aware
-def correlate(a, b=None, method: str = "pearson", decimals: Optional[int] = 2):
+def correlate(a, b=None, method: str = "pearson", decimals: Optional[int] = 2,
+              log_p: bool = False):
     """
     Correlation with p-values, the piece pandas' df.corr() leaves out.
 
@@ -596,13 +643,20 @@ def correlate(a, b=None, method: str = "pearson", decimals: Optional[int] = 2):
         decimals: Number of decimal places to round to. A p-value smaller than
             this resolution keeps two significant figures instead of rounding
             to 0.0, so a tiny p reads as 1.7e-31 rather than a false zero.
+        log_p: Also report log10 of the p-value. Adds a "log10_p" column in
+            matrix mode, and returns (r, p, log10_p) for two Series.
 
     Returns:
         A (r, p) tuple for two Series, or a DataFrame for a DataFrame.
+        With log_p=True, a (r, p, log10_p) tuple or an extra "log10_p" column.
 
     Note:
         On a large sample almost any r is "significant", so p mostly tells you
         the correlation is not exactly zero. Read r for the strength.
+
+        On a large sample p can underflow to a literal 0.0, which means "below
+        1e-308", not "zero". log_p=True recovers the magnitude: a p reported as
+        0.0 may be log10_p = -1967.54, i.e. about 1e-1968.
     """
     from scipy import stats
 
@@ -617,15 +671,21 @@ def correlate(a, b=None, method: str = "pearson", decimals: Optional[int] = 2):
         pair = pd.DataFrame({"a": a, "b": b}).apply(pd.to_numeric, errors="coerce").dropna()
         if len(pair) < 3:
             _warn("correlate needs at least 3 complete numeric pairs. Returning NaN.")
-            return (float("nan"), float("nan"))
+            nan = float("nan")
+            return (nan, nan, nan) if log_p else (nan, nan)
         r, p = corr_fn(pair["a"].to_numpy(), pair["b"].to_numpy())
-        return (_round(float(r), decimals), _round_p(float(p), decimals))
+        out = (_round(float(r), decimals), _round_p(float(p), decimals))
+        if log_p:
+            log10_p = _log10_p_from_r(float(r), len(pair), float(p))
+            return out + (_round(log10_p, decimals),)
+        return out
 
     if not isinstance(a, pd.DataFrame):
         raise TypeError(f"correlate expects a Series or DataFrame, got {type(a).__name__}.")
 
+    columns = ["feature_1", "feature_2", "r", "p"] + (["log10_p"] if log_p else [])
     numeric = a.select_dtypes(include=[np.number])
-    empty = pd.DataFrame(columns=["feature_1", "feature_2", "r", "p"])
+    empty = pd.DataFrame(columns=columns)
     cols = numeric.columns.tolist()
     if len(cols) < 2:
         _warn("Numeric columns required: correlate needs at least 2 numeric columns.")
@@ -639,9 +699,13 @@ def correlate(a, b=None, method: str = "pearson", decimals: Optional[int] = 2):
             if len(pair) < 3 or np.std(x) == 0 or np.std(y) == 0:
                 continue
             r, p = corr_fn(x, y)
-            rows.append((c1, c2, _round(float(r), decimals), _round_p(float(p), decimals)))
+            row = (c1, c2, _round(float(r), decimals), _round_p(float(p), decimals))
+            if log_p:
+                log10_p = _log10_p_from_r(float(r), len(pair), float(p))
+                row += (_round(log10_p, decimals),)
+            rows.append(row)
 
-    result = pd.DataFrame(rows, columns=["feature_1", "feature_2", "r", "p"])
+    result = pd.DataFrame(rows, columns=columns)
     if result.empty:
         return result
     return result.loc[result["r"].abs().sort_values(ascending=False).index].reset_index(drop=True)

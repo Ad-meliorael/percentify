@@ -1,13 +1,13 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/data-centt/percentify/main/asset/log.png" alt="Percentify logo" height="140">
+  <img src="https://raw.githubusercontent.com/Ad-meliorael/percentify/main/asset/log.png" alt="Percentify logo" height="140">
 </p>
 
 [![PyPI version](https://img.shields.io/pypi/v/percentify.svg?style=flat&color=blue)](https://pypi.org/project/percentify/)
 [![Python Version](https://img.shields.io/badge/python-%3E%3D3.10-green?style=flat)](https://pypi.org/project/percentify/)
 [![License](https://img.shields.io/pypi/l/percentify.svg?style=flat&color=orange)](LICENSE)
-[![Docs](https://img.shields.io/badge/docs-percentify-14b8a6)](https://data-centt.github.io/percentify/)
-[![Build Status](https://github.com/data-centt/percentify/actions/workflows/python-app.yml/badge.svg)](https://github.com/data-centt/percentify/actions/workflows/python-app.yml)
-[![Polars](https://img.shields.io/badge/Polars-supported-cd792c?style=flat)](https://data-centt.github.io/percentify/)
+[![Docs](https://img.shields.io/badge/docs-percentify-14b8a6)](https://ad-meliorael.github.io/percentify/)
+[![Build Status](https://github.com/Ad-meliorael/percentify/actions/workflows/python-app.yml/badge.svg)](https://github.com/Ad-meliorael/percentify/actions/workflows/python-app.yml)
+[![Polars](https://img.shields.io/badge/Polars-supported-cd792c?style=flat)](https://ad-meliorael.github.io/percentify/)
 
 **80% of the checks you run on every dataset. 20% of the code.**
 
@@ -33,11 +33,11 @@ report.health              # a 0 to 100 data-health score
 assert not report.errors   # drop it straight into a CI data-quality gate
 ```
 
-Point it at any messy DataFrame, pandas or Polars, and see what it flags before you model. [Try it →](https://data-centt.github.io/percentify/documentation/#profiler)
+Point it at any messy DataFrame, pandas or Polars, and see what it flags before you model. [Try it →](https://ad-meliorael.github.io/percentify/documentation/#profiler)
 
 # 📖 Documentation
 
-**Full guides → [data-centt.github.io/percentify](https://data-centt.github.io/percentify/)**
+**Full guides → [ad-meliorael.github.io/percentify](https://ad-meliorael.github.io/percentify/)**
 
 # 📦 Installation
 
@@ -81,12 +81,12 @@ One import, one line. A clean, sorted DataFrame you can read or feed into the ne
 
 # 🤝 Contributing
 
-Contributions are welcome, provided they align with the repository’s guiding principles. Please review the [contributing](https://github.com/data-centt/percentify/blob/main/CONTRIBUTING.md) guidelines before submitting.
+Contributions are welcome, provided they align with the repository’s guiding principles. Please review the [contributing](https://github.com/Ad-meliorael/percentify/blob/main/CONTRIBUTING.md) guidelines before submitting.
 
 
 # More Examples
 
-These are short, recipe-style examples that go beyond the one-liner above and are intentionally not covered in the [documentation](https://data-centt.github.io/percentify/documentation/). The docs show each function in isolation; these show how to chain them into a real workflow.
+These are short, recipe-style examples that go beyond the one-liner above and are intentionally not covered in the [documentation](https://ad-meliorael.github.io/percentify/documentation/). The docs show each function in isolation; these show how to chain them into a real workflow.
 
 ### A 30-second data-quality gate
 
@@ -199,8 +199,8 @@ kpis = pd.DataFrame({
 print(change(kpis))
 ```
 
-- [Worked examples for every function](https://data-centt.github.io/percentify/documentation/)
-- [Project documentation](https://data-centt.github.io/percentify/)
+- [Worked examples for every function](https://ad-meliorael.github.io/percentify/documentation/)
+- [Project documentation](https://ad-meliorael.github.io/percentify/)
 
 # What's inside
 
@@ -224,4 +224,4 @@ print(change(kpis))
 | `split` | How does a total divide across weights or groups? |
 | `display` | Format numbers or a column as clean "%" strings |
 
-→ See the **[documentation](https://data-centt.github.io/percentify/)** for a worked, real-output example of every function.
+→ See the **[documentation](https://ad-meliorael.github.io/percentify/)** for a worked, real-output example of every function.
