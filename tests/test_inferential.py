@@ -103,10 +103,15 @@ def test_correlate_log_p_matrix_adds_column():
     assert (result["log10_p"] <= 0).all()          # log10 of a probability
 
 
-def test_correlate_log_p_perfect_correlation_is_neg_inf():
-    # A perfect correlation drives p below any representable bound.
+def test_correlate_log_p_perfect_input_is_extremely_negative():
+    # Perfectly correlated input, but scipy versions disagree on the last bit:
+    # some return r == 1.0 (so log10_p is -inf), others the adjacent float
+    # 0.9999999999999999 (so log10_p is about -15.95, which is the correct
+    # p for that r). Both are valid, so accept either explicitly rather than
+    # leaning on -inf < -15. The strict -inf contract for an exact r == 1.0
+    # is pinned at unit level in test_log10_p_edge_cases.
     _, p, log10_p = correlate(pd.Series([1.0, 2, 3, 4]), pd.Series([2.0, 4, 6, 8]), log_p=True)
-    assert log10_p == float("-inf")
+    assert np.isneginf(log10_p) or log10_p < -15
 
 
 def test_correlate_log_p_too_few_pairs_returns_three_nans():
