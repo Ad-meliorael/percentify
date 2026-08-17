@@ -34,6 +34,8 @@ assert not report.errors   # drop it straight into a CI data-quality gate
 ```
 Use case:
 
+![Before](https://raw.githubusercontent.com/dmitriy1ikobe/percentify/main/asset/Before.jpg)
+
 https://raw.githubusercontent.com/dmitriy1ikobe/percentify/main/asset/Before.jpg
 
 Point it at any messy DataFrame, pandas or Polars, and see what it flags before you model. [Try it →](https://ad-meliorael.github.io/percentify/documentation/#profiler)
