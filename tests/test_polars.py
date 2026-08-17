@@ -147,6 +147,25 @@ def test_correlate_polars_two_series_tuple():
     assert r == 1.0
 
 
+def test_correlate_polars_log_p_dataframe():
+    np.random.seed(0)
+    base = np.random.randn(200)
+    df = pl.DataFrame({"a": base, "b": base * 2 + np.random.randn(200) * 0.1,
+                       "c": np.random.randn(200)})
+    result = correlate(df, log_p=True)
+    assert isinstance(result, pl.DataFrame)          # polars in -> polars out
+    assert result.columns == ["feature_1", "feature_2", "r", "p", "log10_p"]
+
+
+def test_correlate_polars_log_p_two_series():
+    np.random.seed(0)
+    a = np.random.randn(200)
+    b = 0.44 * a + np.sqrt(1 - 0.44 ** 2) * np.random.randn(200)
+    r, p, log10_p = correlate(pl.Series(a), pl.Series(b), log_p=True)
+    assert isinstance(log10_p, float)
+    assert log10_p < 0
+
+
 def test_skew_report_polars():
     np.random.seed(0)
     df = pl.DataFrame({"income": np.random.exponential(1, 300), "sym": np.random.randn(300)})

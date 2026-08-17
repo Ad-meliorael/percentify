@@ -1,8 +1,8 @@
 site_name: Percentify
 site_description: Exploratory stats and data-quality diagnostics for pandas and Polars DataFrames. One call each.
-site_url: https://data-centt.github.io/percentify/
-repo_url: https://github.com/data-centt/percentify
-repo_name: data-centt/percentify
+site_url: https://ad-meliorael.github.io/percentify/
+repo_url: https://github.com/Ad-meliorael/percentify
+repo_name: Ad-meliorael/percentify
 
 theme:
   name: material

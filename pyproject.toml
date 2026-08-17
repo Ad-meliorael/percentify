@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "percentify"
 version = "1.0.2"
-description = "Data Exploratory stats and Quality diagnostics for pandas and Polars DataFrames. One easy call each."
+description = "Data Exploratory stats and Quality diagnostics for pandas and Polars DataFrames."
 authors = [{ name = "Daniel Emakporuena", email = "danielemakporuena1@gmail.com" }]
 readme = "README.md"
 license = { text = "Apache-2.0" }
