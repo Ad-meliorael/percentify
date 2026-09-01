@@ -36,7 +36,6 @@ The two styles are interchangeable. Pick one and stay with it.
 
 A few rules hold across the whole library, so you always know what to expect:
 
-- **`pcy` is the alias.** `import percentify as pcy` exposes every function on the namespace. See [Import convention](#import-convention).
 - **DataFrame in → DataFrame out.** Pass a DataFrame and you get a clean DataFrame back. Pass a single `Series` (where it makes sense) and you get a single number.
 - **Sorted worst-first.** Results come back ordered by what usually matters most: most collinear, most missing, most variable, most outliers.
 - **`decimals` everywhere.** Every function accepts a `decimals` argument (default `2`). Pass `decimals=None` for full precision.
