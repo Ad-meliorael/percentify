@@ -21,6 +21,10 @@ Where a function wraps an existing library (pandas, scipy, statsmodels, scikit-l
 pip install percentify
 ```
 
+```python
+import percentify as pcy
+```
+
 Requires Python 3.10+, `numpy`, and `pandas` 2.0+.
 
 ## A quick taste
@@ -39,13 +43,14 @@ missing(df)
 ```
 
 ```text
-   column  missing_pct
-0  salary         50.0
-1     age         25.0
-2    city          0.0
+   column  missing_pct  has_missing
+0  salary         50.0         True
+1     age         25.0         True
+2    city          0.0        False
 ```
 
-One import, one line. A clean, sorted DataFrame you can read or feed straight into the next step.
+The boolean flag is calculated before percentage rounding, so tiny non-zero
+amounts of missing data remain visible even when the percentage is `0.00`.
 
 [Read the full documentation →](documentation.md){ .md-button .md-button--primary }
 

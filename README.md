@@ -58,6 +58,15 @@ missing(df)                  # quick column-level check
 profiler(df, target="churn")  # ranked data-quality issues and fixes
 ```
 
+Or use the alias **`pcy`**:
+
+```python
+import percentify as pcy
+
+pcy.missing(df)
+pcy.profiler(df, target="churn")
+```
+
 ## Quick example
 
 ```python
@@ -71,13 +80,14 @@ df = pd.DataFrame({
 })
 
 missing(df)
-#    column  missing_pct
-# 0  salary         50.0
-# 1     age         25.0
-# 2    city          0.0
+#    column  missing_pct  has_missing
+# 0  salary         50.0         True
+# 1     age         25.0         True
+# 2    city          0.0        False
 ```
 
-One import, one line. A clean, sorted DataFrame you can read or feed into the next step.
+`has_missing` is calculated before percentage rounding, so even a tiny non-zero
+amount of missing data remains visible when `missing_pct` rounds to `0.00`.
 
 # 🤝 Contributing
 

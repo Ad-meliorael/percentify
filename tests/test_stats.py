@@ -193,7 +193,7 @@ def test_missing_returns_dataframe():
     df = pd.DataFrame({"a": [1, None], "b": [1, 2]})
     result = missing(df)
     assert isinstance(result, pd.DataFrame)
-    assert list(result.columns) == ["column", "missing_pct"]
+    assert list(result.columns) == ["column", "missing_pct", "has_missing"]
 
 
 def test_missing_basic():
@@ -208,6 +208,25 @@ def test_missing_basic():
     assert vals["c"] == 0.0
 
 
+def test_missing_flag_survives_percentage_rounding():
+    n = 50_000
+    df = pd.DataFrame({
+        "twenty_missing": [None] * 20 + [1.0] * (n - 20),
+        "one_missing": [None] + [1.0] * (n - 1),
+        "clean": [1.0] * n,
+    })
+    result = missing(df).set_index("column")
+
+    assert result.loc["twenty_missing", "missing_pct"] == 0.04
+    assert bool(result.loc["twenty_missing", "has_missing"])
+    assert result.loc["one_missing", "missing_pct"] == 0.0
+    assert bool(result.loc["one_missing", "has_missing"])
+    assert not bool(result.loc["clean", "has_missing"])
+    assert missing(df)["column"].tolist() == [
+        "twenty_missing", "one_missing", "clean",
+    ]
+
+
 def test_missing_sorted_descending():
     df = pd.DataFrame({
         "a": [1, 2, None, 4, 5],
@@ -219,19 +238,25 @@ def test_missing_sorted_descending():
 
 def test_missing_no_nulls():
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
-    assert (missing(df)["missing_pct"] == 0.0).all()
+    result = missing(df)
+    assert (result["missing_pct"] == 0.0).all()
+    assert not result["has_missing"].any()
 
 
 def test_missing_all_null():
     df = pd.DataFrame({"a": [None, None, None]})
-    vals = _to_map(missing(df), "column", "missing_pct")
+    result = missing(df)
+    vals = _to_map(result, "column", "missing_pct")
     assert vals["a"] == 100.0
+    assert bool(result.loc[0, "has_missing"])
 
 
 def test_missing_empty_df():
     df = pd.DataFrame({"a": [], "b": []})
-    vals = _to_map(missing(df), "column", "missing_pct")
+    result = missing(df)
+    vals = _to_map(result, "column", "missing_pct")
     assert vals["a"] == 0.0
+    assert not result["has_missing"].any()
 
 
 def test_missing_includes_non_numeric():

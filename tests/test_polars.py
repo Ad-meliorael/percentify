@@ -30,9 +30,12 @@ def test_missing_polars_values():
     df = pl.DataFrame({"salary": [1.0, None, 3.0, None], "age": [1.0, 2.0, None, 4.0]})
     result = missing(df)
     assert isinstance(result, pl.DataFrame)
+    assert result.columns == ["column", "missing_pct", "has_missing"]
     d = dict(zip(result["column"].to_list(), result["missing_pct"].to_list()))
     assert d["salary"] == 50.0
     assert d["age"] == 25.0
+    flags = dict(zip(result["column"].to_list(), result["has_missing"].to_list()))
+    assert flags == {"salary": True, "age": True}
 
 
 def test_cv_polars_dataframe():

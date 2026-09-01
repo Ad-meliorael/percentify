@@ -82,6 +82,38 @@ def test_profiler_composes_missing_high_warning():
     assert "high_missing" in codes
 
 
+def test_profiler_displays_precise_missing_pct_and_flag():
+    n = 50_000
+    df = pd.DataFrame({
+        "twenty_missing": [None] * 20 + [1.0] * (n - 20),
+        "one_missing": [None] + [1.0] * (n - 1),
+        "clean": [1.0] * n,
+    })
+    report = profiler(df)
+    summary = report.summary.set_index("column")
+
+    assert summary.loc["twenty_missing", "missing_pct"] == 0.04
+    assert bool(summary.loc["twenty_missing", "has_missing"])
+    assert summary.loc["one_missing", "missing_pct"] == 0.0
+    assert bool(summary.loc["one_missing", "has_missing"])
+    assert not bool(summary.loc["clean", "has_missing"])
+
+    text = str(report)
+    twenty_line = next(line for line in text.splitlines() if line.startswith("twenty_missing"))
+    one_line = next(line for line in text.splitlines() if line.startswith("one_missing"))
+    clean_line = next(line for line in text.splitlines() if line.startswith("clean"))
+    assert "Has Missing" in text
+    assert "0.04%" in twenty_line and "Yes" in twenty_line
+    assert "0.00%" in one_line and "Yes" in one_line
+    assert "0.00%" in clean_line and "No" in clean_line
+
+    rendered = report._repr_html_()
+    assert "Has Missing" in rendered
+    assert "0.04%" in rendered
+    assert ">Yes<" in rendered
+    assert ">No<" in rendered
+
+
 def test_profiler_polars_input(messy_df):
     pl = pytest.importorskip("polars")
     report = profiler(pl.from_pandas(messy_df), target="churn")
@@ -99,6 +131,23 @@ def test_profiler_single_target_visible():
     assert "target" not in report.summary["column"].tolist()          # excluded from features
     assert "target" in report.target_summary["column"].tolist()       # shown in TARGET section
     assert "target: target" in str(report)                            # named in the header
+
+
+def test_profiler_target_uses_missing_report_and_two_decimals():
+    n = 1_000
+    target = np.arange(n, dtype=float)
+    target[0] = np.nan
+    report = profiler(
+        pd.DataFrame({"feature": np.arange(n) % 17, "target": target}),
+        target="target",
+    )
+    row = report.target_summary.set_index("column").loc["target"]
+
+    assert row["missing_pct"] == 0.1
+    assert bool(row["has_missing"])
+    target_line = next(line for line in str(report).splitlines() if line.startswith("target"))
+    assert "0.10%" in target_line
+    assert "Yes" in target_line
 
 
 def test_profiler_accepts_target_list():

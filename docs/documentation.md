@@ -10,9 +10,25 @@ pip install percentify
 
 Percentify requires Python 3.10+, `numpy`, and `pandas` 2.0+.
 
+## Import convention
+
+Percentify's alias is **`pcy`**:
+
+```python
+import percentify as pcy
+
+pcy.missing(df)
+pcy.profiler(df, target="churn")
+```
+
+Every function is available on the namespace. Importing functions directly works
+too, and is what the examples on this page use so each call stays on one line:
+
 ```python
 from percentify import change, vif, missing, cv, outliers, pca_variance, pca_loadings
 ```
+
+The two styles are interchangeable. Pick one and stay with it.
 
 ---
 
@@ -20,6 +36,7 @@ from percentify import change, vif, missing, cv, outliers, pca_variance, pca_loa
 
 A few rules hold across the whole library, so you always know what to expect:
 
+- **`pcy` is the alias.** `import percentify as pcy` exposes every function on the namespace. See [Import convention](#import-convention).
 - **DataFrame in → DataFrame out.** Pass a DataFrame and you get a clean DataFrame back. Pass a single `Series` (where it makes sense) and you get a single number.
 - **Sorted worst-first.** Results come back ordered by what usually matters most: most collinear, most missing, most variable, most outliers.
 - **`decimals` everywhere.** Every function accepts a `decimals` argument (default `2`). Pass `decimals=None` for full precision.
@@ -85,7 +102,10 @@ severity         code   column                          message                 
     info    imbalance <target> class 'Yes' is only 4.0% of rows consider resampling or class weights
 ```
 
-The report renders as a compact, color-coded summary in notebooks and terminals, and exposes everything programmatically:
+The report renders as a compact, color-coded summary in notebooks and terminals.
+Its column and target tables show missing percentages to two decimal places and
+a separate **Has Missing** Yes/No flag, while retaining the distinct-value count.
+It also exposes everything programmatically:
 
 - `report.errors`, `report.warnings`, `report.infos`: findings filtered by severity.
 - `report.to_frame()`: all findings as a tidy DataFrame.
@@ -230,7 +250,8 @@ vif(df, flag=5.0)
 
 ## `missing`
 
-The percentage of missing values in each column, sorted highest first.
+The percentage of missing values in each column, sorted highest first, plus a
+boolean flag showing whether the column contains any missing value at all.
 
 !!! tip "Similar concept"
     `pandas.DataFrame.isna`
@@ -257,13 +278,16 @@ missing(df)
 ```
 
 ```text
-   column  missing_pct
-0  salary         50.0
-1     age         25.0
-2    city          0.0
+   column  missing_pct  has_missing
+0  salary         50.0         True
+1     age         25.0         True
+2    city          0.0        False
 ```
 
-Unlike the numeric-only functions, `missing` reports on **every** column, text included.
+Unlike the numeric-only functions, `missing` reports on **every** column, text
+included. `missing_pct` uses two decimal places by default. `has_missing` is
+calculated before rounding, so it remains `True` even when a tiny non-zero rate
+rounds to `0.00`.
 
 ---
 

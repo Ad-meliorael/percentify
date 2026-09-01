@@ -122,6 +122,11 @@ def _text_columns(df: pd.DataFrame) -> list[str]:
     return [c for c in df.columns if _is_textual_dtype(df[c].dtype)]
 
 
+def _format_missing(pct, has_missing) -> tuple[str, str]:
+    """Format missingness consistently for terminal and notebook reports."""
+    return f"{float(pct):.2f}%", "Yes" if bool(has_missing) else "No"
+
+
 def _encode_target(target: pd.Series) -> tuple[np.ndarray, bool]:
     """Return (numeric codes, is_categorical)."""
     if pd.api.types.is_numeric_dtype(target) and not pd.api.types.is_bool_dtype(target):
@@ -131,20 +136,20 @@ def _encode_target(target: pd.Series) -> tuple[np.ndarray, bool]:
 
 
 def _summarize(df: pd.DataFrame):
-    """Per-column (dtype, missing %, cardinality) summary plus sparklines."""
-    n = len(df)
+    """Per-column (dtype, missing %, missing flag, cardinality) summary."""
     rows, sparks = [], {}
     for col in df.columns:
         rows.append({
             "column": col,
             "dtype": str(df[col].dtype),
-            "missing_pct": float(df[col].isna().mean() * 100) if n else 0.0,
             "cardinality": int(df[col].nunique(dropna=True)),
         })
         if pd.api.types.is_numeric_dtype(df[col]) and not pd.api.types.is_bool_dtype(df[col]):
             sparks[col] = _sparkline(df[col])
-    cols = ["column", "dtype", "missing_pct", "cardinality"]
-    return pd.DataFrame(rows, columns=cols), sparks
+    summary = pd.DataFrame(rows, columns=["column", "dtype", "cardinality"])
+    summary = summary.merge(missing(df), on="column", how="left", sort=False)
+    cols = ["column", "dtype", "missing_pct", "has_missing", "cardinality"]
+    return summary[cols], sparks
 
 
 def _target_info(series: pd.Series):
@@ -192,17 +197,25 @@ def _summarize_target(targets: dict) -> pd.DataFrame:
     rows = []
     for name, series in targets.items():
         role, balance = _target_info(series)
-        n = len(series)
         rows.append({
             "column": name,
             "dtype": str(series.dtype),
             "inferred_role": role,
-            "missing_pct": float(series.isna().mean() * 100) if n else 0.0,
             "cardinality": int(series.nunique(dropna=True)),
             "balance": balance,
         })
-    cols = ["column", "dtype", "inferred_role", "missing_pct", "cardinality", "balance"]
-    return pd.DataFrame(rows, columns=cols)
+    summary = pd.DataFrame(
+        rows,
+        columns=["column", "dtype", "inferred_role", "cardinality", "balance"],
+    )
+    summary = summary.merge(
+        missing(pd.DataFrame(targets)), on="column", how="left", sort=False,
+    )
+    cols = [
+        "column", "dtype", "inferred_role", "missing_pct", "has_missing",
+        "cardinality", "balance",
+    ]
+    return summary[cols]
 
 
 # --------------------------------------------------------------------------- #
@@ -514,25 +527,31 @@ class ProfileReport:
 
     def _text_table(self, summary) -> list:
         lines = [f"{'Column':<20} {'Type':<8} {'Distribution':<14} "
-                 f"{'Missing':>8} {'Distinct':>10}"]
+                 f"{'Missing':>9} {'Has Missing':>11} {'Distinct':>10}"]
         for _, row in summary.iterrows():
             spark = self._sparklines.get(row["column"], "")
-            miss = f"{row['missing_pct']:.0f}%"
+            miss, has_missing = _format_missing(
+                row["missing_pct"], row["has_missing"],
+            )
             lines.append(
                 f"{str(row['column'])[:20]:<20} {str(row['dtype'])[:8]:<8} "
-                f"{spark:<14} {miss:>8} {row['cardinality']:>10,}"
+                f"{spark:<14} {miss:>9} {has_missing:>11} "
+                f"{row['cardinality']:>10,}"
             )
         return lines
 
     def _target_text_table(self, summary) -> list:
         lines = [f"{'Column':<16} {'Type':<8} {'Inferred Role':<15} "
-                 f"{'Missing':>8} {'Distinct':>9}  Balance / shape"]
+                 f"{'Missing':>9} {'Has Missing':>11} {'Distinct':>9}  "
+                 "Balance / shape"]
         for _, row in summary.iterrows():
-            miss = f"{row['missing_pct']:.0f}%"
+            miss, has_missing = _format_missing(
+                row["missing_pct"], row["has_missing"],
+            )
             lines.append(
                 f"{str(row['column'])[:16]:<16} {str(row['dtype'])[:8]:<8} "
-                f"{str(row['inferred_role']):<15} {miss:>8} "
-                f"{row['cardinality']:>9,}  {row['balance']}"
+                f"{str(row['inferred_role']):<15} {miss:>9} "
+                f"{has_missing:>11} {row['cardinality']:>9,}  {row['balance']}"
             )
         return lines
 
@@ -565,12 +584,16 @@ class ProfileReport:
         rows = ""
         for _, r in summary.iterrows():
             spark = self._sparklines.get(r["column"], "")
+            miss, has_missing = _format_missing(
+                r["missing_pct"], r["has_missing"],
+            )
             rows += (
                 "<tr>"
                 f'<td style="font-family:monospace;padding:2px 12px">{html.escape(str(r["column"]))}</td>'
                 f'<td style="padding:2px 12px;color:#888">{html.escape(str(r["dtype"]))}</td>'
                 f'<td style="font-family:monospace;padding:2px 12px">{spark}</td>'
-                f'<td style="padding:2px 12px">{r["missing_pct"]:.0f}%</td>'
+                f'<td style="padding:2px 12px">{miss}</td>'
+                f'<td style="padding:2px 12px">{has_missing}</td>'
                 f'<td style="padding:2px 12px">{r["cardinality"]:,}</td>'
                 "</tr>"
             )
@@ -578,6 +601,7 @@ class ProfileReport:
             '<table style="border-collapse:collapse;margin-bottom:12px">'
             f'<thead><tr><th style="{th}">Column</th><th style="{th}">Type</th>'
             f'<th style="{th}">Distribution</th><th style="{th}">Missing</th>'
+            f'<th style="{th}">Has Missing</th>'
             f'<th style="{th}">Distinct</th></tr></thead>'
             f'<tbody>{rows}</tbody></table>'
         )
@@ -587,12 +611,16 @@ class ProfileReport:
               "font-weight:600;color:#888;font-size:11px")
         rows = ""
         for _, r in summary.iterrows():
+            miss, has_missing = _format_missing(
+                r["missing_pct"], r["has_missing"],
+            )
             rows += (
                 "<tr>"
                 f'<td style="font-family:monospace;padding:2px 12px">{html.escape(str(r["column"]))}</td>'
                 f'<td style="padding:2px 12px;color:#888">{html.escape(str(r["dtype"]))}</td>'
                 f'<td style="padding:2px 12px">{html.escape(str(r["inferred_role"]))}</td>'
-                f'<td style="padding:2px 12px">{r["missing_pct"]:.0f}%</td>'
+                f'<td style="padding:2px 12px">{miss}</td>'
+                f'<td style="padding:2px 12px">{has_missing}</td>'
                 f'<td style="padding:2px 12px">{r["cardinality"]:,}</td>'
                 f'<td style="padding:2px 12px">{html.escape(str(r["balance"]))}</td>'
                 "</tr>"
@@ -601,6 +629,7 @@ class ProfileReport:
             '<table style="border-collapse:collapse;margin-bottom:12px">'
             f'<thead><tr><th style="{th}">Column</th><th style="{th}">Type</th>'
             f'<th style="{th}">Inferred Role</th><th style="{th}">Missing</th>'
+            f'<th style="{th}">Has Missing</th>'
             f'<th style="{th}">Distinct</th><th style="{th}">Balance / shape</th>'
             f'</tr></thead><tbody>{rows}</tbody></table>'
         )

@@ -285,7 +285,9 @@ def missing(df: pd.DataFrame, decimals: Optional[int] = 2) -> pd.DataFrame:
         decimals: Number of decimal places to round to.
 
     Returns:
-        DataFrame with columns ["column", "missing_pct"], sorted highest first.
+        DataFrame with columns ["column", "missing_pct", "has_missing"],
+        sorted highest first. ``has_missing`` is calculated before percentage
+        rounding, so even a tiny non-zero amount of missing data remains visible.
     """
     if not isinstance(df, pd.DataFrame):
         raise TypeError(f"missing expects a pandas DataFrame, got {type(df).__name__}.")
@@ -293,11 +295,18 @@ def missing(df: pd.DataFrame, decimals: Optional[int] = 2) -> pd.DataFrame:
     total = len(df)
     rows = []
     for col in df.columns:
-        pct = 0.0 if total == 0 else df[col].isnull().sum() / total * 100.0
-        rows.append((col, _round(pct, decimals)))
+        missing_count = int(df[col].isnull().sum())
+        pct = 0.0 if total == 0 else missing_count / total * 100.0
+        rows.append((col, _round(pct, decimals), missing_count > 0, missing_count))
 
-    result = pd.DataFrame(rows, columns=["column", "missing_pct"])
-    return result.sort_values("missing_pct", ascending=False).reset_index(drop=True)
+    result = pd.DataFrame(
+        rows,
+        columns=["column", "missing_pct", "has_missing", "_missing_count"],
+    )
+    result = result.sort_values(
+        "_missing_count", ascending=False, kind="stable",
+    ).drop(columns="_missing_count")
+    return result.reset_index(drop=True)
 
 
 @_backend_aware
